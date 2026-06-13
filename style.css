@@ -281,9 +281,11 @@ body {
 }
 .video-block {
     width: 100%;
-    height: 98%;
-    padding: 5px;
+    height: 100%;
     box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 .video-block iframe {
     width: 100%;
