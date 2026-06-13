@@ -1,16 +1,132 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="./vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MovieSync</title>
-    <script type="module" crossorigin src="./assets/index-25f8242a.js"></script>
-    <link rel="stylesheet" href="./assets/index-bbb363de.css">
-  <link rel="manifest" href="./manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="./registerSW.js"></script></head>
-  <body>
-    <div id="app"></div>
-    
-    <link rel="manifest" href="manifest.json">
-  </body>
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="./style.css">
+    </head>
+    <body>
+        <div id="vueEntry">
+            <!-- Program List -->
+            <div class="program-list" :class="{ 'collapsed': isProgramListCollapsed }">
+                <div class="program-list-header">
+                    <div class="header-left">
+                        <div class="header-title">Live Streams</div>
+                        <div class="filter-tabs">
+                            <div class="filter-tab"
+                                :class="{ 'active': statusFilter === 'live' }"
+                                @click="changeProgramStatus('live')"
+                            >Live</div>
+                            <div class="filter-tab"
+                                :class="{ 'active': statusFilter === 'upcoming' }"
+                                @click="changeProgramStatus('upcoming')"
+                            >Upcoming</div>
+                        </div>
+                        <div class="org-select">
+                            <select v-model="organization" @change="fetchPrograms">
+                                <option value="All Vtubers">All Vtubers</option>
+                                <option value="Hololive">Hololive</option>
+                                <option value="Nijisanji">Nijisanji</option>
+                                <option value="VShojo">VShojo</option>
+                                <option value="Independents">Independents</option>
+                            </select>
+                        </div>
+                        <div class="refresh-button"
+                            :class="{ 'loading': isProgramLoading }"
+                            @click="fetchPrograms"
+                        >
+                            <span>↻</span>
+                        </div>
+                    </div>
+                    <div class="collapse-button" @click="toggleProgramList">
+                        {{ isProgramListCollapsed ? '▼' : '▲' }}
+                    </div>
+                </div>
+                <div class="program-list-content" v-show="!isProgramListCollapsed">
+                    <div class="loading-text" v-if="isProgramLoading && programs.length === 0">Loading...</div>
+                    <div class="empty-text" v-else-if="!isProgramLoading && programs.length === 0">No streams found</div>
+                    <div class="program-card"
+                        v-for="program in programs"
+                        :key="program.id"
+                        :title="program.title"
+                        @click="selectProgram(program)"
+                    >
+                        <div class="thumbnail">
+                            <img :src="`https://i.ytimg.com/vi/${program.id}/mqdefault.jpg`" :alt="program.title" loading="lazy">
+                            <div class="status-badge" :class="program.status">
+                                <span v-if="program.status === 'live'">● LIVE</span>
+                                <span v-else-if="program.status === 'upcoming'">{{ formatStartTime(program.start_scheduled) }}</span>
+                            </div>
+                            <div class="viewer-count" v-if="program.status === 'live' && program.live_viewers">
+                                {{ formatViewers(program.live_viewers) }}
+                            </div>
+                        </div>
+                        <div class="program-info">
+                            <div class="program-title">{{ program.title }}</div>
+                            <div class="channel-name">{{ program.channel && program.channel.name }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Blocks -->
+            <div class="video-blocks-container">
+                <!-- Block 1 -->
+                <div class="video-slot">
+                    <div v-if="containerState[0] === 'input'" class="video-select-container" id="selectContainer1">
+                        <div class="video-type-block">
+                            <div class="video-type" :class="{'video-type-selected': videoType[0] === 'file' }" id="videoTag" @click="changeVideoType(0, 'file')">File</div>
+                            <div class="video-type" :class="{'video-type-selected': videoType[0] === 'youtube' }" id="TYTag" @click="changeVideoType(0, 'youtube')">Youtube</div>
+                        </div>
+                        <div v-if="videoType[0] === 'file'" class="input-block">
+                            <input type="file" @change="(event) => chooseVideo(event, 0)">
+                        </div>
+                        <div v-else class="input-block">
+                            <input type="text"
+                                autocomplete="none"
+                                v-model="youtubeURL[0]"
+                            >
+                            <button @click="confirmURL(0)">Confirm</button>
+                        </div>
+                    </div>
+                    <div v-else class="video-container">
+                        <div class="video-button back-button" @click="returnToInput(0)">Back</div>
+                        <div v-if="videoType[0] === 'file'" class="video-block">
+                            <video
+                                ref="videoRef"
+                                :src="videoSource[0]"
+                                muted
+                                autoplay
+                                playsinline
+                                @timeupdate="updateDisplayTime"
+                                @click="(event) => togglePlay(event)"
+                                @dblclick="(event) => doubleClickHandler(event)"
+                            >
+                            </video>
+                            <div class="video-button play-button" @click="playVideo">Play</div>
+                            <div class="video-button pause-button" @click="pauseVideo">Pause</div>
+                            <input type="range" class="video-bar" v-model="videoBarValue" min="0" max="100" @change="dragVideoTime"></input>
+                            <div class="video-time">{{ videoTime }}</div>
+                        </div>
+                        <div v-else class="video-block" id="player1"></div>
+                    </div>
+                </div>
+
+                <!-- Block 2 -->
+                <div class="video-slot">
+                    <div v-if="containerState[1] === 'input'" class="video-select-container" id="selectContainer2">
+                        <div class="input-block">
+                            <input type="text" v-model="youtubeURL[1]" autocomplete="none">
+                            <button @click="confirmURL(1)">Confirm</button>
+                        </div>
+                    </div>
+                    <div v-else class="video-container">
+                        <div class="video-button back-button" @click="returnToInput(1)">Back</div>
+                        <div class="video-block" id="player2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+        <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+        <script src="./vueEntry.js"></script>
+    </body>
 </html>
